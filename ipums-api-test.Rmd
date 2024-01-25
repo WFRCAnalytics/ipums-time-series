@@ -1,0 +1,220 @@
+---
+title: "IPUMS API TEST"
+author: "Chris Day"
+date: "2024-01-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ipumsr)
+library(tidyverse)
+library(sf)
+library(purrr)
+library(mapview)
+```
+
+## Download Data Example
+```{r}
+apikey = '59cba10d8a5da536fc06b59dd0e03dee980e4c999e4f373846adcc75'
+
+cps_extract_request <- define_extract_cps(
+  description = "2018-2019 CPS Data",
+  samples = c("cps2018_05s", "cps2019_05s"),
+  variables = c("SEX", "AGE", "YEAR")
+)
+
+nhgis_extract_request <- define_extract_nhgis(
+  description = "NHGIS Data via IPUMS API",
+  datasets = ds_spec(
+    "1990_STF1",
+    data_tables = c("NP1", "NP2", "NP3"),
+    geog_levels = "state"
+  )
+)
+```
+
+```{r}
+
+submitted_extract <- submit_extract(nhgis_extract_request, api_key = apikey)
+downloadable_extract <- wait_for_extract(submitted_extract, api_key = apikey)
+data_files <- download_extract(downloadable_extract, api_key = apikey)
+
+url <- downloadable_extract$download_links$table_data$url
+data <- sub(".*/", "", basename(url))
+```
+
+```{r}
+newpath <- file.path("data",data)
+unzip(zipfile = data, exdir = newpath)
+file.remove(data)
+
+nhgis_data <- read_nhgis(file.path(newpath,"nhgis0004_csv/nhgis0004_ds120_1990_state.csv"))
+```
+
+## Time Series Metadata
+
+```{r}
+time_series_mdta <- get_metadata_nhgis("time_series_tables", api_key = apikey)
+
+names <- c("2000","2010","2020","105","115","125","135","145","155","165","175","185","195","205","215","225")
+time_series_2000 <- time_series_mdta %>%
+  filter(Reduce(`&`, lapply(names, function(x) map_lgl(years, ~ x %in% .x$name))))
+```
+
+## County Analysis
+
+```{r}
+acs_years <- c("2006-2010", "2007-2011", "2008-2012", "2009-2013", "2010-2014", "2011-2015", "2012-2016", "2013-2017", "2014-2018", "2015-2019", "2016-2020", "2017-2021", "2018-2022")
+
+tst_names <- c("Total Population", "Total Housing Units", "Persons by Age [2]: Children and Adults","Persons by Race [5*]")
+tst_tables <- c("AV0", "A41", "D08", "B18")
+tst_geogs <- c("county", "place")
+tst_years <- acs_years
+
+nhgis_ext <- define_extract_nhgis(
+  description = "Example time series table request",
+  time_series_tables = tst_spec(
+    "AV0", #Total Population 
+    geog_levels = c("county", "place"),
+    years = acs_years
+  ),
+  shapefiles = c("us_county_2010_tl2010", "us_place_2010_tl2010")
+)
+
+nhgis_ext_submitted <- submit_extract(nhgis_ext,api_key = apikey)
+downloadable_extract <- wait_for_extract(nhgis_ext_submitted, api_key = apikey)
+data_files <- download_extract(downloadable_extract, api_key = apikey)
+```
+
+```{r}
+table_url <- downloadable_extract$download_links$table_data$url
+shape_url <- downloadable_extract$download_links$gis_data$url
+table_data <- sub(".*/", "", basename(table_url))
+shape_data <- sub(".*/", "", basename(shape_url))
+table_path <- file.path("data",table_data)
+shape_path <- file.path("data",shape_data)
+unzip(zipfile = table_data, exdir = table_path)
+unzip(zipfile = shape_data, exdir = shape_path)
+file.remove(table_data)
+file.remove(shape_data)
+```
+
+```{r}
+acs_AV0_data <- read_nhgis(file.path(table_path,"nhgis0012_csv/nhgis0012_ts_nominal_county.csv")) 
+
+acs_AV0_data_long <- acs_AV0_data %>%
+  pivot_longer(cols = starts_with("AV0AA"), names_to = "Year", values_to = "TotPop")
+acs_AV0_data_long$Year <- sub("AV0AA", "", acs_AV0_data_long$Year)
+acs_AV0_data_long <- acs_AV0_data_long %>%
+  filter(!grepl("M",Year)) %>%
+  mutate(Year = as.numeric(paste0("20",sub(".$", "", Year))))
+
+gis_county_2010_acs <- st_read(file.path(shape_path,"nhgis0012_shape/nhgis0012_shapefile_tl2010_us_county_2010/US_county_2010.shp")) %>%
+  select(GISJOIN)
+
+sf_acs_AV0_data <- gis_county_2010_acs %>% left_join(acs_AV0_data_long) %>%
+  filter(STATE == 'Utah')
+mapview(sf_acs_AV0_data)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Mapping
+
+```{r}
+library(plotly)
+library(htmlwidgets)
+
+Sys.setenv('MAPBOX_TOKEN' = 'pk.eyJ1IjoiY2RheTk3IiwiYSI6ImNscG4xYXUyYjBjaGgya3BqcXFyMnV5anYifQ.fuwqOztKXYj41tpGv-fI2Q')
+
+map1 <- plot_mapbox() %>% 
+  add_segments(x = -100, xend = -50, y = 50, yend = 75) %>%
+  layout(
+    mapbox = list(
+      zoom = 0,
+      center = list(lat = 65, lon = -75)
+    )
+  )
+
+plot_geo(sf_acs_AV0_data) %>%
+  layout(geo = list(projection = list(type = "mercator")))
+
+p <- plot_geo(sf_acs_AV0_data) %>%
+  add_sf() %>%
+  add_trace(    z = ~sf_acs_AV0_data$TotPop, 
+                locations = ~gis_county_2010_acs$GISJOIN, 
+                frame=~sf_acs_AV0_data$Year,
+                color = ~sf_acs_AV0_data$TotPop)
+
+p
+
+htmlwidgets::saveWidget(p, file = "map.html")
+
+```
+
+```{r}
+plot_ly() %>%
+  add_trace(
+    type = "choroplethmapbox", collapse = "",
+    locations = row.names(state.x77),
+    z = state.x77[, "Population"] / state.x77[, "Area"],
+    span = I(0)
+  ) %>%
+  layout(
+    mapbox = list(
+      style = "light",
+      zoom = 4,
+      center = list(lon = -98.58, lat = 39.82)
+    )
+  ) %>%
+  config(
+    mapboxAccessToken = Sys.getenv("MAPBOX_TOKEN"),
+    # Workaround to make sure image download uses full container
+    # size https://github.com/plotly/plotly.js/pull/3746
+    toImageButtonOptions = list(
+      format = "svg", 
+      width = NULL, 
+      height = NULL
+    )
+  )
+```
+
+```{r}
+topics <- c("AVO", #Total Population
+            "AV1", #Persons by Sex[2]
+            "D08", #Persons by Age [2]: Children and Adults
+            "B18", #Persons by Race [5*]
+            "A35", #Persons of Hispanic or Latino Origin
+            "CQ9", #Persons Under 18 Years in Households
+            "AR5", #Total Households
+            "AT5", #Persons by Nativity [2]
+            "B69", #Persons 25 Years and Over by Educational Attainment [3]
+            "A64", #Persons 16 Years and Over by Age [9] by Labor Force and Employment Status [6]
+            "C54", #Workers of Working Age* by Means of Transportation to Work [9]
+            "AC2", #Workers 16 Years and Over by Means of Transportation to Work [18]
+            "CW0", #Total Commuters (Workers 16 Years and Over Who Did Not Work from Home)
+            "C50", #Commuters by Travel Time to Work [8]
+            "C98", #Aggregate Travel Time to Work for Commuters
+            "BS7", #Households by Income* in Previous Year [4]
+            "B79", #Median Household Income in Previous Year
+            "BD5", #Per Capita Income in Previous Year
+            "CL6", #Persons* below Poverty Level in Previous Year
+            "C19", #Persons* by Ratio of Income to Poverty Level in Previous Year [2]
+           )
+```
+

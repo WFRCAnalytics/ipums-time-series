@@ -1,0 +1,212 @@
+---
+title: "IPUMS API"
+author: "Chris Day"
+date: "2024-01-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(ipumsr)
+library(tidyverse)
+library(sf)
+library(purrr)
+library(mapview)
+```
+
+## TimeSeries Metadata
+
+### API Key
+```{r api}
+apikey <- '59cba10d8a5da536fc06b59dd0e03dee980e4c999e4f373846adcc75'
+acs_names <- c("105","115","125","135","145","155","165","175","185","195","205","215","225")
+```
+
+### Metadata
+```{r metadata}
+time_series_mdta <- get_metadata_nhgis("time_series_tables", api_key = apikey)
+time_series_mdta_acs <- time_series_mdta %>%
+  filter(Reduce(`&`, lapply(acs_names, function(x) map_lgl(years, ~ x %in% .x$name))))
+```
+
+### Topics of Interest
+```{r topics}
+topics <- c("AV0", #Total Population
+            "AV1", #Persons by Sex[2]
+            "D08", #Persons by Age [2]: Children and Adults
+            "B18", #Persons by Race [5*]
+            "A35", #Persons of Hispanic or Latino Origin
+            "CQ9", #Persons Under 18 Years in Households
+            "AR5", #Total Households
+            "AT5", #Persons by Nativity [2]
+            "B69", #Persons 25 Years and Over by Educational Attainment [3]
+            "CW0", #Total Commuters (Workers 16 Years and Over Who Did Not Work from Home)
+            "C50", #Commuters by Travel Time to Work [8]
+            "C98", #Aggregate Travel Time to Work for Commuters
+            "BS7", #Households by Income* in Previous Year [4]
+            "B79", #Median Household Income in Previous Year
+            "BD5", #Per Capita Income in Previous Year
+            "CL6", #Persons* below Poverty Level in Previous Year
+            "C19"  #Persons* by Ratio of Income to Poverty Level in Previous Year [2]
+          )
+topics_notract <- c("C54", #Workers of Working Age* by Means of Transportation to Work [9]
+                    "AC2" #Workers 16 Years and Over by Means of Transportation to Work [18]}
+                   )
+```
+
+## API Content Download
+
+### GIS Shape Download
+```{r shape}
+# Define year
+shape_year <- "2010"
+
+nhgis_shape_ext <- define_extract_nhgis(
+  description = "GIS Download",
+  shapefiles = c(
+    paste0("us_county_", shape_year, "_tl", shape_year),
+    paste0("us_tract_", shape_year, "_tl", shape_year),
+    paste0("us_cty_sub_", shape_year, "_tl", shape_year),
+    paste0("us_place_", shape_year, "_tl", shape_year)
+  )
+)
+nhgis_ext_submitted <- submit_extract(nhgis_shape_ext,api_key = apikey)
+downloadable_extract <- wait_for_extract(nhgis_ext_submitted, api_key = apikey)
+data_files <- download_extract(downloadable_extract, api_key = apikey)
+```
+
+```{r unzip}
+#Note: After downloading, please move the downloaded data to the data folder, unzip its contents, and rename to exclude data request number -- example code for something to help speed up process
+   # shape_url <- downloadable_extract$download_links$gis_data$url
+   # shape_data <- sub(".*/", "", basename(shape_url))
+   # shape_path <- file.path("data",shape_data)
+   # unzip(zipfile = shape_data, exdir = shape_path)
+   # file.remove(shape_data)
+```
+
+### Define GIS Boundaries
+```{r boundaries}
+tl2010_county <- st_read(paste0("data/nhgis_shapefile_tl",shape_year,"/nhgis_shapefile_tl",shape_year,"_us_county_",shape_year,"/US_county_",shape_year,".shp")) #%>% select(GISJOIN)
+
+tl2010_city <- st_read(paste0("data/nhgis_shapefile_tl",shape_year,"/nhgis_shapefile_tl",shape_year,"_us_cty_sub_",shape_year,"/US_cty_sub_",shape_year,".shp")) #%>% select(GISJOIN)
+
+tl2010_tract <- st_read(paste0("data/nhgis_shapefile_tl",shape_year,"/nhgis_shapefile_tl",shape_year,"_us_tract_",shape_year,"/US_tract_",shape_year,".shp")) #%>% select(GISJOIN)
+
+tl2010_place <- st_read(paste0("data/nhgis_shapefile_tl",shape_year,"/nhgis_shapefile_tl",shape_year,"_us_place_",shape_year,"/US_place_",shape_year,".shp")) #%>% select(GISJOIN)
+```
+
+
+### Time Series Table Download
+```{r acsyears}
+acs_years <- c("2006-2010", "2007-2011", "2008-2012", "2009-2013", "2010-2014", 
+               "2011-2015", "2012-2016", "2013-2017", "2014-2018", "2015-2019", 
+               "2016-2020", "2017-2021", "2018-2022")
+```
+
+```{r}
+download_data <- function(t,g){
+  
+  for (i in seq_along(t)) {
+    # format request
+    nhgis_ext2 <- define_extract_nhgis(
+    description = "Time Series Download",
+    time_series_tables = tst_spec(
+      t[i], 
+      geog_levels = g,
+      years = acs_years
+      )
+    )
+  
+    # submit and download requested data
+    nhgis_ext_submitted2 <- submit_extract(nhgis_ext2,api_key = apikey)
+    downloadable_extract2 <- wait_for_extract(nhgis_ext_submitted2, api_key = apikey)
+    data_files2 <- download_extract(downloadable_extract2, api_key = apikey)
+  
+    rename_unzip_files(downloadable_extract2, t, i)
+  }
+}
+```
+
+```{r}
+tops = topics #topics_notract
+geogs = c("county","cty_sub","tract","place")  #c("county","cty_sub","place")
+
+download_data(tops,geogs)
+```
+
+## Join Shape to Time Series
+
+
+
+```{r}
+gtest <- c("county","cty_sub")
+nhgis_ext_test <- define_extract_nhgis(
+    description = "Time Series Download Test",
+    time_series_tables = tst_spec(
+      topics[1], 
+      geog_levels = gtest,
+      years = acs_years
+      )
+    )
+  
+    # submit and download requested data
+    nhgis_ext_submitted_test <- submit_extract(nhgis_ext_test,api_key = apikey)
+    downloadable_extract_test <- wait_for_extract(nhgis_ext_submitted_test, api_key = apikey)
+    data_files_test <- download_extract(downloadable_extract_test, api_key = apikey)
+  
+    rename_files(downloadable_extract_test)
+```
+
+```{r}
+rename_unzip_files <- function(download_extract, topics, i) {
+  
+  # determine variable names
+  table_url <- download_extract$download_links$table_data$url
+  table_zip <- sub(".*/", "", basename(table_url))
+  table_name <-  sub("^(.*?)_.+$", "\\1", table_zip)
+  name_replace <- topics[i]
+  data_path <- file.path("data")
+  
+  # unzip downloaded data
+  unzip(zipfile = table_zip, exdir = data_path)
+  
+  # all items to rename
+  all_items <- c(list.files(data_path, full.names = TRUE, recursive = TRUE),
+                 list.dirs(data_path, full.names = TRUE, recursive = TRUE))
+
+  #iIterate over each item
+  for (item in all_items) {
+    base_name <- basename(item)
+    new_name <- gsub(table_name, name_replace, base_name)
+    new_name <- gsub("_csv", "", new_name)
+    new_path <- file.path(dirname(item), new_name)
+    file.rename(item, new_path)
+  }
+
+  #remove original zip file
+  file.remove(table_zip)
+}
+```
+
+
+
+## Still to Do
+- get all the time series data that exists at the block group level
+- write api to get OTHER data (other than time series)
+- join to shapefile (most recent one if possible -- 2022 probably) -- unless its the one standardized to 2010, then use that one
+- upload to AGOL
+- meet with Bert for next steps
+
+
+
+## Bert Notes
+- Focus more time on 1 or 2 test cases than downloaded a bunch of stuff (SOV vehicle commutes, or telecommuting percentage)
+- block group level is essential, but so is time series -- we want both
+- may need to find a way to connect "our definition" of places to theirs
+
+
+
+
