@@ -17,6 +17,12 @@ library(purrr)
 library(mapview)
 ```
 
+## Useful Sites
+ - [Time Series Explanation](https://www.nhgis.org/time-series-tables#layouts)
+ - [Data Download](https://data2.nhgis.org/main)
+ - [R API](https://tech.popdata.org/ipumsr/articles/)
+
+
 ## TimeSeries Metadata
 
 ### API Key
@@ -106,61 +112,7 @@ acs_years <- c("2006-2010", "2007-2011", "2008-2012", "2009-2013", "2010-2014",
                "2016-2020", "2017-2021", "2018-2022")
 ```
 
-```{r}
-download_data <- function(t,g){
-  
-  for (i in seq_along(t)) {
-    # format request
-    nhgis_ext2 <- define_extract_nhgis(
-    description = "Time Series Download",
-    time_series_tables = tst_spec(
-      t[i], 
-      geog_levels = g,
-      years = acs_years
-      )
-    )
-  
-    # submit and download requested data
-    nhgis_ext_submitted2 <- submit_extract(nhgis_ext2,api_key = apikey)
-    downloadable_extract2 <- wait_for_extract(nhgis_ext_submitted2, api_key = apikey)
-    data_files2 <- download_extract(downloadable_extract2, api_key = apikey)
-  
-    rename_unzip_files(downloadable_extract2, t, i)
-  }
-}
-```
-
-```{r}
-tops = topics #topics_notract
-geogs = c("county","cty_sub","tract","place")  #c("county","cty_sub","place")
-
-download_data(tops,geogs)
-```
-
-## Join Shape to Time Series
-
-
-
-```{r}
-gtest <- c("county","cty_sub")
-nhgis_ext_test <- define_extract_nhgis(
-    description = "Time Series Download Test",
-    time_series_tables = tst_spec(
-      topics[1], 
-      geog_levels = gtest,
-      years = acs_years
-      )
-    )
-  
-    # submit and download requested data
-    nhgis_ext_submitted_test <- submit_extract(nhgis_ext_test,api_key = apikey)
-    downloadable_extract_test <- wait_for_extract(nhgis_ext_submitted_test, api_key = apikey)
-    data_files_test <- download_extract(downloadable_extract_test, api_key = apikey)
-  
-    rename_files(downloadable_extract_test)
-```
-
-```{r}
+```{r rename_unzip}
 rename_unzip_files <- function(download_extract, topics, i) {
   
   # determine variable names
@@ -191,21 +143,347 @@ rename_unzip_files <- function(download_extract, topics, i) {
 }
 ```
 
+```{r download}
+download_data <- function(t,g,a){
+  
+  for (i in seq_along(t)) {
+    # format request
+    nhgis_ext2 <- define_extract_nhgis(
+    description = "Time Series Download",
+    time_series_tables = tst_spec(
+      t[i], 
+      geog_levels = g,
+      years = a
+      )
+    )
+  
+    # submit and download requested data
+    nhgis_ext_submitted2 <- submit_extract(nhgis_ext2,api_key = apikey)
+    downloadable_extract2 <- wait_for_extract(nhgis_ext_submitted2, api_key = apikey)
+    data_files2 <- download_extract(downloadable_extract2, api_key = apikey)
+  
+    rename_unzip_files(downloadable_extract2, t, i)
+  }
+}
+```
+
+```{r}
+tops = topics 
+geogs = c("county","cty_sub","tract","place") 
+#tops = topics_notract
+#geogs = c("county","cty_sub","place") 
+
+download_data(tops,geogs, acs_years)
+```
+
+## Join Shape to Time Series
+
+
+
+
+
+
+## Investigating Means of Transportation to Work (C54)
+
+### Download NHGIS Places 2022
+```{r}
+# Define year
+shape_year <- "2022"
+
+nhgis_shape_ext <- define_extract_nhgis(
+  description = "GIS Download",
+  shapefiles = c(
+    paste0("us_cty_sub_", shape_year, "_tl", shape_year)
+  )
+)
+nhgis_ext_submitted <- submit_extract(nhgis_shape_ext,api_key = apikey)
+downloadable_extract <- wait_for_extract(nhgis_ext_submitted, api_key = apikey)
+data_files <- download_extract(downloadable_extract, api_key = apikey)
+```
+
+### Download WF Cities and Filter NHGIS Places 2022
+```{r wf_cities}
+wf_cities <- st_read("A:/1 - TDM/3 - Model Dev/1 - WF/1 - Official Release/v9x/v9.0/WF TDM v9.0 - official/1_Inputs/1_TAZ/_Source/Cities/Cities_NAD83.shp") %>%
+  select(COUNTYNBR, NAME, SHORTDESC, UGRCODE) %>%
+  filter(COUNTYNBR %in% c("02", #BRIGHAM CITY
+                          "06", #DAVIS
+                          "15", #MORGAN
+                          "18", #TOOELE
+                          "22", #SUMMIT
+                          "23", #SL
+                          "25", #UTAH 
+                          "26", #WASATCH
+                          "29"  #WEBER
+                         ))
+mapview(wf_cities)
+
+#They look to line up enough -- technically this is wf's city's dataset, and we need cities and township -- which I think is accessible at UGRC
+```
+
+```{r places_list}
+places_list <- c(
+    "Alpine"            ,
+    "Alta"                ,
+    "American Fork"       ,
+    "Benjamin"            ,
+    "Bluffdale"           ,
+    "Bountiful"           ,
+    "Brigham City"        ,
+    "Brighton"            ,
+    "Cedar Fort"          ,
+    "Cedar Hills"         ,
+    "Centerville"         ,
+    "Clearfield"          ,
+    "Clinton"             ,
+    "Copperton"           ,
+    "Cottonwood Heights"  ,
+    "Draper"              ,
+    "Eagle Mountain"      ,
+    "Elberta"             ,
+    "Elk Ridge"           ,
+    "Emigration Canyon"   ,
+    "Fairfield"           ,
+    "Farmington"          ,
+    "Farr West"           ,
+    "Fruit Heights"       ,
+    "Genola"              ,
+    "Goshen"              ,
+    "Harrisville"         ,
+    "Herriman"            ,
+    "Highland"            ,
+    "Holladay"            ,
+    "Hooper"              ,
+    "Kaysville"           ,
+    "Kearns"              ,
+    "Lake Shore"          ,
+    "Layton"              ,
+    "Lehi"                ,
+    "Lindon"              ,
+    "Magna"               ,
+    "Mantua"              ,
+    "Mapleton"            ,
+    "Marriott-Slaterville",
+    "Midvale"             ,
+    "Millcreek"           ,
+    "Murray"              ,
+    "North Ogden"         ,
+    "North Salt Lake"     ,
+    "Ogden"               ,
+    "Orem"                ,
+    "Palmyra"             ,
+    "Payson"              ,
+    "Perry"               ,
+    "Plain City"          ,
+    "Pleasant Grove"      ,
+    "Pleasant View"       ,
+    "Provo"               ,
+    "Riverdale"           ,
+    "Riverton"            ,
+    "Roy"                 ,
+    "Salem"               ,
+    "Salt Lake City"      ,
+    "Sandy"               ,
+    "Santaquin"           ,
+    "Saratoga Springs"    ,
+    "South Jordan"        ,
+    "South Ogden"         ,
+    "South Salt Lake"     ,
+    "South Weber"         ,
+    "South Willard"       , #Chris added, but not technically on online list of areas
+    "Spanish Fork"        ,
+    "Springville"         ,
+    "Sunset"              ,
+    "Syracuse"            ,
+    "Taylorsville"        ,
+    "Uintah"              ,
+    "Vineyard"            ,
+    "Washington Terrace"  ,
+    "West Bountiful"      ,
+    "West Haven"          ,
+    "West Jordan"         ,
+    "West Mountain"       ,
+    "West Point"          ,
+    "West Valley City"    ,
+    "White City"          ,
+    "Willard"             ,
+    "Woodland Hills"      ,
+    "Woods Cross"         
+)
+```
+
+```{r places_gis}
+nhgis_places_2022 <- st_read("data/nhgis_shapefile_tl2022/nhgis0074_shapefile_tl2022_us_place_2022/US_place_2022.shp") %>%
+  filter(STATEFP == "49") %>%
+  filter(NAME %in% places_list) %>%
+  select(GISJOIN)
+nhgis_places_2022 <- st_transform(nhgis_places_2022, 4326)
+mapview(nhgis_places_2022)
+```
+
+### Join Spatial Data to Commuter Data
+
+```{r ac2_dict}
+# data dictionary
+AC2_data_dict <- tibble(
+   Code = c("AA","AB","AC", "AD","AE","AF","AG","AH","AI","AJ","AK","AL","AM","AN","AO","AP","AQ","AR"),
+   Name = c("Car, truck, or van",
+            "Car, truck, or van--Drove alone",
+            "Car, truck, or van--Carpooled",
+            "Car, truck, or van--Carpooled--In 2-person carpool",
+            "Car, truck, or van--Carpooled--In 3-person carpool",
+            "Car, truck, or van--Carpooled--In 4-person carpool",
+            "Car, truck, or van--Carpooled--In 5- or 6-person carpool",
+            "Car, truck, or van--Carpooled--In 7-or-more-person carpool",
+            "Public transportation (excluding ferryboat and taxicab)",
+            "Public transportation (excluding ferryboat and taxicab)--Bus, streetcar, or (since 2019) light rail",
+            "Public transportation (excluding ferryboat and taxicab)--Subway or elevated rail",
+            "Public transportation (excluding ferryboat and taxicab)--Railroad (until 2018) or long-distance train or commuter rail (since 2019)",
+            "Taxicab",
+            "Motorcycle",
+            "Bicycle",
+            "Walked",
+            "Other means (including ferryboat)",
+            "Worked from home "
+            ),
+   ShortName = c("AUTO",
+                 "SOV",
+                 "HOV",
+                 "HOV2",
+                 "HOV3",
+                 "HOV4",
+                 "HOV56",
+                 "HOV7P",
+                 "PT",
+                 "PT-BUS-LRT",
+                 "PT-SUB",
+                 "PT-CRT",
+                 "TAXI",
+                 "MCYCLE",
+                 "BIKE",
+                 "WALK",
+                 "OTHER",
+                 "WFH"))
+#Notes
+## AUTO = SOV + HOV + HOV2 + HOV3 + HOV4 + HOV56 + HOV7P
+## PT = PT-BUS-LRT + PT-SUB + PT-CRT
+## MOTORIZED = AUTO + PT + TAXI + MCYCLE
+## NONMOTORIZED = BIKE + WALK
+## TOTAL = MOTORIZED + NONMOTORIZED + OTHER + WFH
+
+AC2_data_dict
+```
+
+```{r}
+ac2_2022 <- read_csv("data/AC2/AC2_ts_nominal_place.csv") %>%
+  filter(STATE == 'Utah') %>%
+  select(
+    -matches("GJOIN(201[0-9]|202[0-1])"),
+    -matches("NAME(201[0-9]|202[0-1])"),
+    -c("STATE", "STATEFP", "STATENH", "PLACEA"),
+    -ends_with("M")
+  )
+```
+
+```{r}
+ac2_2022_wide <- ac2_2022 %>%
+  pivot_longer(
+    cols = -c(GJOIN2022, NHGISCODE, PLACE, NAME2022),
+    names_to = "CODEYEAR",
+    values_to = "VAL"
+  ) %>%
+  mutate(
+    Variable = substr(CODEYEAR, 4, 5),
+    Year = as.integer(paste0("20",substr(CODEYEAR, 6, 7))),
+    ShortName = AC2_data_dict$ShortName[match(Variable, AC2_data_dict$Code)],
+    Name = AC2_data_dict$Name[match(Variable, AC2_data_dict$Code)]
+  ) %>%
+  select(-Variable)
+```
+
+
+### Map SOV
+```{r}
+ac2_2022_wide_sov <- ac2_2022_wide %>%
+  filter(ShortName == 'SOV')
+
+ac2_2022_sov_gis <- nhgis_places_2022 %>%
+  left_join(ac2_2022_wide_sov, by=c("GISJOIN" = "GJOIN2022")) %>%
+  select(-NAME2022, -Name, -CODEYEAR, -NHGISCODE)
+```
+
+```{r}
+library(gganimate)
+library(gifski)
+library(magick)
+
+p <- ggplot() +
+  geom_sf(data = test, aes(fill = VAL)) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue",limits = c(0, 80000)) +
+  labs(title = "Heat Map by Year",
+       fill = "VAL") +
+  coord_sf(crs = 4326) +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels by 45 degrees
+
+p
+
+```
+
+```{r}
+dir.create("frames", showWarnings = FALSE)
+
+# Loop through each year and save frames
+for (year in unique(ac2_2022_sov_gis$Year)) {
+  # Filter data for the current year
+  df_filtered <- ac2_2022_sov_gis[ac2_2022_sov_gis$Year == year, ]
+  
+  # Create a ggplot object
+  p <- ggplot() +
+    geom_sf(data = df_filtered, aes(fill = VAL)) +
+    scale_fill_gradient(low = "lightblue", high = "darkblue",limits = c(0, 75000)) +
+    labs(title = paste("SOV-Commuters -", year),
+         fill = "VAL") +
+    coord_sf(crs = 4326) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Save the plot as a PNG file
+  ggsave(paste0("frames/frame_", year, ".png"), p, width = 6, height = 4)
+}
+
+# Combine frames into a GIF using magick
+image_files <- list.files("frames", pattern = "frame_.*\\.png", full.names = TRUE)
+animation_gif <- image_read(image_files) %>% 
+  image_animate(fps = 1) %>%
+  image_write("SOV-Commuters.gif")
+
+# Remove the 'frames' directory after creating the GIF
+unlink("frames", recursive = TRUE)
+```
+
+
+
 
 
 ## Still to Do
-- get all the time series data that exists at the block group level
-- write api to get OTHER data (other than time series)
-- join to shapefile (most recent one if possible -- 2022 probably) -- unless its the one standardized to 2010, then use that one
+- get all the time series data that exists at the places level
+- write api to get OTHER data.. maybe (other than time series)
+- join to 2022 shapefile -- unless its the one standardized to 2010, then use 2010
 - upload to AGOL
 - meet with Bert for next steps
 
 
-
 ## Bert Notes
 - Focus more time on 1 or 2 test cases than downloaded a bunch of stuff (SOV vehicle commutes, or telecommuting percentage)
-- block group level is essential, but so is time series -- we want both
-- may need to find a way to connect "our definition" of places to theirs
+- places for time series data with acs 5 year
+- counties of interest tooele, morgan, summit, wasatch, davis, weber, salt lake, utah, box elder
+
+
+## Chad Notes
+- It might be a good idea to "double check" and review the 1_Inputs/2_SEData/_ControLTotals/_Source - ControlTotal_SE - 2022-08-31.xlsx (Sheet Process_SE_Historic) to make sure the values match up with NHGIS data
+- Telecommuting is not a variable within ACS or census questions. Instead they use Work at Home, and in some cases they use different self-employment variables. Telecommute (according to the process of the TDM) is calculated as the Total Work at Home value minus the self-employment totals. 
+  - tables to use: MEANS OF TRANSPORTATION TO WORK BY CLASS OF WORKER, MEANS OF TRANSPORTATION TO WORK BY INDUSTRY
+  
 
 
 
