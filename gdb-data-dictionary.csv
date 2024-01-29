@@ -1,0 +1,25 @@
+Variable,Table,Value
+AC2_AB_SOV_TRIPS,Workers 16 years and Over by Means of Transportation to Work,Drive Alone
+AC2_AI_PT_TRIPS,Workers 16 years and Over by Means of Transportation to Work,Public transportation (excluding ferryboat and taxicab)
+AC2_AO_BIKE_TRIPS,Workers 16 years and Over by Means of Transportation to Work,Bike
+AC2_AP_WALK_TRIPS,Workers 16 years and Over by Means of Transportation to Work,Walk
+AC2_AR_WFH_CNT,Workers 16 years and Over by Means of Transportation to Work,Work-From-Home
+AV0_AA_TOT_POP,Total Population,Total Population
+CQ9_AA_HH_U18,Persons Under 18 Years in Households,Persons Under 18
+B79_AA_HHInc_Prev,Median Household Income in Previous Year,Median Income
+BD5_AA_PCInc_Prev,Per Capita Income in Previous Year,Per Capita Income
+C19_AA_IncPovRat_075,Persons by Ratio of Income to Poverty Level in Previous Year,Income/Poverty Ratio under 0.75 (determined status)
+C19_AB_IncPovRat_125,Persons by Ratio of Income to Poverty Level in Previous Year,Income/Poverty Ratio under 1.25 (determined status)
+CL6_AA_BelowPov_CNT,Persons below Poverty Level in Previous Year,Persons Below Poverty Level
+AR5_AA_TOT_HH,Total Households,Total Housholds
+C98_AA_TOT_TT_WRK,Aggregate Travel Time to Work for Commuters,Total Travel Time to Work
+D13_AA_MED_AGE,Median Age of Persons,Medan Age
+CV5_AA_HH_HHSIZE1,Occupided Housing Units by Houshold Size,Households with only 1 Persons
+CV5_AB_HH_HHSIZE2,Occupided Housing Units by Houshold Size,Households with only 2 Persons
+CV5_AC_HH_HHSIZE3,Occupided Housing Units by Houshold Size,Households with only 3 Persons
+CV5_AD_HH_HHSIZE4,Occupided Housing Units by Houshold Size,Households with only 4 Persons
+CV5_AE_HH_HHSIZE5,Occupided Housing Units by Houshold Size,Households with only 5 Persons
+CV5_AF_HH_HHSIZE6P,Occupided Housing Units by Houshold Size,Households with 6 or more Persons
+B86_AA_LESSBACH_CNT,Persons: 18 years and older by Educational Attainment,Persons with education below a Bachelor's Degree
+B86_AB_BACH_CNT,Persons: 18 years and older by Educational Attainment,Persons with a Bachelor's Degree
+B86_AD_GRAD_CNT,Persons: 18 years and older by Educational Attainment,Persons with a Graduate or Professional Degree

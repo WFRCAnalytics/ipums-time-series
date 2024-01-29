@@ -1,0 +1,405 @@
+---
+title: "IPUMS-GDB"
+author: "Chris Day"
+date: "2024-01-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(ipumsr)
+library(tidyverse)
+library(sf)
+library(purrr)
+library(mapview)
+library(arcgisbinding)
+source("R/ipums-data-dict.R")
+```
+
+### Time Series Table Download
+The explanation behind this download code can be found in ipums-data-download.Rmd. For now, just use these lines to download whatever table you want.
+
+```{r acsyears}
+acs_years <- c("2006-2010", "2007-2011", "2008-2012", "2009-2013", "2010-2014", 
+               "2011-2015", "2012-2016", "2013-2017", "2014-2018", "2015-2019", 
+               "2016-2020", "2017-2021", "2018-2022")
+```
+
+```{r}
+tops = c("B86") #topics
+geogs = c("place") 
+download_data(tops,geogs, acs_years)
+```
+
+## Time Series Data Findings
+We start this RMarkdown mentioning a few things we found out about the NHGIS Time Series data:
+
+ - There are no time series datasets that include information from the ACSs at the block group level. The lowest geometry is the place level. Time series at the block group level is only available for census years.
+ - The data we have is "Nominally" constrained -- meaning that the geography is not consistent throughout time. Upon further investigation however, the place level geographies from 2022 match up "pretty closely" with the place level geographies from 2010.
+ - Its also important to note that the place level geographies from 2022 match up with the "City/Township" dataset from UGRC. (See Next Section)
+ - Most of the "Places of Interest" according to this [url](https://docs.google.com/spreadsheets/d/1R6hsy0HQoZH-zj1JuV5OU5neATdOwgTJWXNvHIiIDMs/edit#gid=1708662420) exist within the places dataset. In fact, all cities/townships exist in the places dataset from NHGIS with the exception of *Lake Mountain* and *Mosida* cities.
+
+## Places Geography
+### Places of Interest
+First we specify all the cities of interest in this list.
+```{r places_list}
+places_list <- c(
+    "Alpine"            ,
+    "Alta"                ,
+    "American Fork"       ,
+    "Benjamin"            ,
+    "Bluffdale"           ,
+    "Bountiful"           ,
+    "Brigham City"        ,
+    "Brighton"            ,
+    "Cedar Fort"          ,
+    "Cedar Hills"         ,
+    "Centerville"         ,
+    "Clearfield"          ,
+    "Clinton"             ,
+    "Copperton"           ,
+    "Cottonwood Heights"  ,
+    "Draper"              ,
+    "Eagle Mountain"      ,
+    "Elberta"             ,
+    "Elk Ridge"           ,
+    "Emigration Canyon"   ,
+    "Fairfield"           ,
+    "Farmington"          ,
+    "Farr West"           ,
+    "Fruit Heights"       ,
+    "Genola"              ,
+    "Goshen"              ,
+    "Harrisville"         ,
+    "Herriman"            ,
+    "Highland"            ,
+    "Holladay"            ,
+    "Hooper"              ,
+    "Kaysville"           ,
+    "Kearns"              ,
+    "Lake Shore"          ,
+    "Layton"              ,
+    "Lehi"                ,
+    "Lindon"              ,
+    "Magna"               ,
+    "Mantua"              ,
+    "Mapleton"            ,
+    "Marriott-Slaterville",
+    "Midvale"             ,
+    "Millcreek"           ,
+    "Murray"              ,
+    "North Ogden"         ,
+    "North Salt Lake"     ,
+    "Ogden"               ,
+    "Orem"                ,
+    "Palmyra"             ,
+    "Payson"              ,
+    "Perry"               ,
+    "Plain City"          ,
+    "Pleasant Grove"      ,
+    "Pleasant View"       ,
+    "Provo"               ,
+    "Riverdale"           ,
+    "Riverton"            ,
+    "Roy"                 ,
+    "Salem"               ,
+    "Salt Lake City"      ,
+    "Sandy"               ,
+    "Santaquin"           ,
+    "Saratoga Springs"    ,
+    "South Jordan"        ,
+    "South Ogden"         ,
+    "South Salt Lake"     ,
+    "South Weber"         ,
+    "South Willard"       , #Chris added, but not technically on online list of areas
+    "Spanish Fork"        ,
+    "Springville"         ,
+    "Sunset"              ,
+    "Syracuse"            ,
+    "Taylorsville"        ,
+    "Uintah"              ,
+    "Vineyard"            ,
+    "Washington Terrace"  ,
+    "West Bountiful"      ,
+    "West Haven"          ,
+    "West Jordan"         ,
+    "West Mountain"       ,
+    "West Point"          ,
+    "West Valley City"    ,
+    "White City"          ,
+    "Willard"             ,
+    "Woodland Hills"      ,
+    "Woods Cross"         
+)
+```
+
+### Read in Places 2022
+Here we read in the 2022 places shapefile, filter to Utah, and transform to EPSG:26912.
+```{r places_gis}
+nhgis_places_2022 <- st_read("data/nhgis_shapefile_tl2022/nhgis0074_shapefile_tl2022_us_place_2022/US_place_2022.shp") %>%
+  filter(STATEFP == "49") %>%
+  filter(NAME %in% places_list) %>%
+  select(GISJOIN, NAME)
+nhgis_places_2022 <- st_transform(nhgis_places_2022, 26912)
+mapview(nhgis_places_2022)
+```
+
+
+## File Geodatabase Layer Creation by Metric
+
+```{r}
+#table   <- "AC2"
+#code    <- "AO"
+#descrip <- "BIKE_TRIPS"
+#create_save_places_2022_layer(table, code, descrip, nhgis_places_2022)
+```
+
+### Metrics
+```{r}
+# Workers 16 Years and Over by Means of Transportation to Work [18]
+create_save_places_2022_layer("AC2", "AB", "SOV_TRIPS"    , nhgis_places_2022)
+create_save_places_2022_layer("AC2", "AI", "PT_TRIPS"     , nhgis_places_2022)
+create_save_places_2022_layer("AC2", "AO", "BIKE_TRIPS"   , nhgis_places_2022)
+create_save_places_2022_layer("AC2", "AP", "WALK_TRIPS"   , nhgis_places_2022)
+create_save_places_2022_layer("AC2", "AR", "WFH_CNT"      , nhgis_places_2022)
+
+# Total Population
+create_save_places_2022_layer("AV0", "AA", "TOT_POP"      , nhgis_places_2022)
+
+# Persons Under 18 Years in Households
+create_save_places_2022_layer("CQ9", "AA", "HH_U18"       , nhgis_places_2022)
+
+# Median Household Income in Previous Year
+create_save_places_2022_layer("B79", "AA", "HHInc_Prev"   , nhgis_places_2022)
+
+# Per Capita Income in Previous Year
+create_save_places_2022_layer("BD5", "AA", "PCInc_Prev"   , nhgis_places_2022)
+
+# Persons* by Ratio of Income to Poverty Level in Previous Year [2]
+create_save_places_2022_layer("C19", "AA", "IncPovRat_075", nhgis_places_2022)#under 0.75 (determined status)
+create_save_places_2022_layer("C19", "AB", "IncPovRat_125", nhgis_places_2022)#under 1.25 (determined status)
+
+# Persons* below Poverty Level in Previous Year
+create_save_places_2022_layer("CL6", "AA", "BelowPov_CNT" , nhgis_places_2022)
+
+# Total Households
+create_save_places_2022_layer("AR5", "AA", "TOT_HH"       , nhgis_places_2022)
+
+# Aggregate Travel Time to Work for Commuters
+create_save_places_2022_layer("C98", "AA", "TOT_TT_WRK"   , nhgis_places_2022)
+
+# Median Age of Persons
+create_save_places_2022_layer("D13", "AA", "MED_AGE"      , nhgis_places_2022)
+
+# Occupied Housing Units by Household Size
+create_save_places_2022_layer("CV5", "AA", "HH_HHSIZE1"   , nhgis_places_2022)
+create_save_places_2022_layer("CV5", "AB", "HH_HHSIZE2"   , nhgis_places_2022)
+create_save_places_2022_layer("CV5", "AC", "HH_HHSIZE3"   , nhgis_places_2022)
+create_save_places_2022_layer("CV5", "AD", "HH_HHSIZE4"   , nhgis_places_2022)
+create_save_places_2022_layer("CV5", "AE", "HH_HHSIZE5"   , nhgis_places_2022)
+create_save_places_2022_layer("CV5", "AF", "HH_HHSIZE6P"  , nhgis_places_2022)
+
+# Persons: 18 years and over ~ less than bachelors degree, bachelor's degree, graduation/professional degree
+create_save_places_2022_layer("B86", "AA", "LESSBACH_CNT" , nhgis_places_2022)
+create_save_places_2022_layer("B86", "AB", "BACH_CNT"     , nhgis_places_2022)
+create_save_places_2022_layer("B86", "AC", "GRADP_CNT"    , nhgis_places_2022)
+
+# FURTHER ANALYSIS
+# Persons by Race (find minorities -- % is best)
+# Persons by Age (find those that are 65P -- % is best)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### R GDB Notes
+Saving to an ESRI File Geodatabase is now possible because of the R-ArcGIS Bridge and its arcgisbinding Package. Below are the steps I followed to getting this library to work:
+
+ - Download arcgisbinding package (Shown [here](https://www.youtube.com/redirect?event=video_description&redir_token=QUFFLUhqbkgyNnRwVVJoR2VZNWxyc1d5WDJpMDBmSDU1d3xBQ3Jtc0traDlsenN5ZkljZXdObHRya2tEWGQ3QTN3TXF5QW1hdmZFZzR3WDRueUIwMmN0UWg2Umw0UkJ3cDlQM0N4aDVOSmtxWkJyUWNFVGJNenRwQkxYV3Ixb2VmWVlRaEt5VDBUNnBNY0wxNjFZRm42TzA4TQ&q=https%3A%2F%2Fgithub.com%2FR-ArcGIS%2Fr-bridge%2Freleases%2Fdownload%2Fv1.0.0.111%2Farcgisbinding_1.0.0.111.zip&v=SUuj28yLV-4) or in Discussion of this [Youtube Link](https://www.youtube.com/watch?v=SUuj28yLV-4)
+ - In RStudio, click on **Packages > Install > Install From .zip > Browse > Select Download**
+ - Next open up ArcGis Pro and click on **Project > Options > Geoprocessing > R-ArcGIS Support > Check package for updates**. This should update the downloaded arcgisbinding to a compatible version
+ - Restart RStudio using .rs.restartR()
+ - Load library using library(arcgisbinding)
+ - Use this [pdf link](chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://esricanada-ce.github.io/r-arcgis-tutorials/3-R-ArcGIS-Scripting.pdf) on instructions for using the package: 
+ - Use arc.check_product() to verify licensing
+ 
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Map SOV
+```{r}
+ac2_2022_wide_sov <- ac2_2022_wide %>%
+  filter(ShortName == 'SOV')
+
+ac2_2022_sov_gis <- nhgis_places_2022 %>%
+  left_join(ac2_2022_wide_sov, by=c("GISJOIN" = "GJOIN2022")) %>%
+  select(-NAME2022, -Name, -CODEYEAR, -NHGISCODE)
+```
+
+```{r}
+library(gganimate)
+library(gifski)
+library(magick)
+
+p <- ggplot() +
+  geom_sf(data = test, aes(fill = VAL)) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue",limits = c(0, 80000)) +
+  labs(title = "Heat Map by Year",
+       fill = "VAL") +
+  coord_sf(crs = 4326) +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels by 45 degrees
+
+p
+
+```
+
+```{r}
+dir.create("frames", showWarnings = FALSE)
+
+# Loop through each year and save frames
+for (year in unique(ac2_2022_sov_gis$Year)) {
+  # Filter data for the current year
+  df_filtered <- ac2_2022_sov_gis[ac2_2022_sov_gis$Year == year, ]
+  
+  # Create a ggplot object
+  p <- ggplot() +
+    geom_sf(data = df_filtered, aes(fill = VAL)) +
+    scale_fill_gradient(low = "lightblue", high = "darkblue",limits = c(0, 75000)) +
+    labs(title = paste("SOV-Commuters -", year),
+         fill = "VAL") +
+    coord_sf(crs = 4326) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Save the plot as a PNG file
+  ggsave(paste0("frames/frame_", year, ".png"), p, width = 6, height = 4)
+}
+
+# Combine frames into a GIF using magick
+image_files <- list.files("frames", pattern = "frame_.*\\.png", full.names = TRUE)
+animation_gif <- image_read(image_files) %>% 
+  image_animate(fps = 1) %>%
+  image_write("SOV-Commuters.gif")
+
+# Remove the 'frames' directory after creating the GIF
+unlink("frames", recursive = TRUE)
+```
+
+
+
+## TESTING
+
+```{r variables}
+data_table   <- 'AC2'       #'AC2'
+data_code    <- 'AR'        #'AB'
+data_descrip <- 'WFH_CNT'   #'SOV_TRIPS'
+layer_name   <- paste0(data_table,"_",data_code,"_",data_descrip)
+```
+
+Read in table
+```{r}
+csv_data <- read_csv(paste0("data/",data_table,"/",data_table,"_ts_nominal_place.csv")) %>%
+  filter(STATE == 'Utah') %>%
+  select(
+    -matches("GJOIN(201[0-9]|202[0-1])"),
+    -matches("NAME(201[0-9]|202[0-1])"),
+    -c("STATE", "STATEFP", "STATENH", "PLACEA"),
+    -ends_with("M"),
+    -NHGISCODE
+  )
+```
+
+Pivot wider
+```{r}
+csv_data_wide <- csv_data %>%
+  pivot_longer(
+    cols = -c(GJOIN2022, PLACE, NAME2022),
+    names_to = "CODEYEAR",
+    values_to = "VAL"
+  ) %>%
+  mutate(
+    Code = substr(CODEYEAR, 4, 5),
+    Year = as.integer(paste0("20",substr(CODEYEAR, 6, 7)))#,
+    #ShortName = AC2_data_dict$ShortName[match(Code, AC2_data_dict$Code)],
+    #Name = AC2_data_dict$Name[match(Code, AC2_data_dict$Code)]
+  ) %>%
+  select(-CODEYEAR, Code, PLACE)
+```
+
+Filter and pivot long
+```{r}
+csv_data_select <- csv_data_wide %>%
+  filter(Code == data_code) %>%
+  pivot_wider(
+    id_cols = c(GJOIN2022, PLACE),
+    names_from = Year,
+    values_from = VAL
+  ) %>%
+  rename_with(
+    ~paste0("ACS5_", .x),
+    starts_with("20")  # Assuming the years start with "20"
+  )
+```
+
+Merge Shape
+```{r}
+csv_data_gis <- nhgis_places_2022 %>%
+  left_join(csv_data_select, by=c("GISJOIN" = "GJOIN2022"))
+```
+
+Save to GDB
+```{r}
+arc.write(paste0("outputs/NHGIS-Time-Series.gdb/",layer_name), csv_data_gis, overwrite = TRUE)
+```
+

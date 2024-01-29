@@ -1,0 +1,136 @@
+---
+title: "IPUMS API"
+author: "Chris Day"
+date: "2024-01-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(ipumsr)
+library(tidyverse)
+library(sf)
+library(purrr)
+library(mapview)
+source("R/ipums-api-scripts.R")
+```
+
+## Useful Sites
+ - [Time Series Explanation](https://www.nhgis.org/time-series-tables#layouts)
+ - [Data Download](https://data2.nhgis.org/main)
+ - [R API](https://tech.popdata.org/ipumsr/articles/)
+
+________________________________________________________________________________
+
+## TimeSeries Setup
+### Metadata
+```{r metadata}
+acs_names <- c("105","115","125","135","145","155","165","175","185","195","205","215","225")
+time_series_mdta <- get_metadata_nhgis("time_series_tables", api_key = apikey)
+time_series_mdta_acs <- time_series_mdta %>%
+  filter(Reduce(`&`, lapply(acs_names, function(x) map_lgl(years, ~ x %in% .x$name))))
+```
+
+### Topics of Interest
+```{r topics}
+topics <- c("AV0", #Total Population
+            "AV1", #Persons by Sex[2]
+            "D08", #Persons by Age [2]: Children and Adults
+            "B18", #Persons by Race [5*]
+            "A35", #Persons of Hispanic or Latino Origin
+            "CQ9", #Persons Under 18 Years in Households
+            "AR5", #Total Households
+            "AT5", #Persons by Nativity [2]
+            "B69", #Persons 25 Years and Over by Educational Attainment [3]
+            "CW0", #Total Commuters (Workers 16 Years and Over Who Did Not Work from Home)
+            "C50", #Commuters by Travel Time to Work [8]
+            "C98", #Aggregate Travel Time to Work for Commuters
+            "BS7", #Households by Income* in Previous Year [4]
+            "B79", #Median Household Income in Previous Year
+            "BD5", #Per Capita Income in Previous Year
+            "CL6", #Persons* below Poverty Level in Previous Year
+            "C19"  #Persons* by Ratio of Income to Poverty Level in Previous Year [2]
+          )
+topics_notract <- c("C54", #Workers of Working Age* by Means of Transportation to Work [9]
+                    "AC2" #Workers 16 Years and Over by Means of Transportation to Work [18]}
+                   )
+```
+________________________________________________________________________________
+
+## API Content Download
+### GIS Shape Download
+```{r shape}
+# Define year
+shape_year <- "2022"
+
+nhgis_shape_ext <- define_extract_nhgis(
+  description = "GIS Download",
+  shapefiles = c(
+    #paste0("us_county_", shape_year, "_tl", shape_year),
+    #paste0("us_tract_", shape_year, "_tl", shape_year),
+    #paste0("us_cty_sub_", shape_year, "_tl", shape_year),
+    paste0("us_place_", shape_year, "_tl", shape_year)
+  )
+)
+nhgis_ext_submitted <- submit_extract(nhgis_shape_ext,api_key = apikey)
+downloadable_extract <- wait_for_extract(nhgis_ext_submitted, api_key = apikey)
+data_files <- download_extract(downloadable_extract, api_key = apikey)
+```
+
+```{r unzip}
+#Note: After downloading, please move the downloaded data to the data folder, unzip its contents, and rename to exclude data request number -- example code for something to help speed up process
+   # shape_url <- downloadable_extract$download_links$gis_data$url
+   # shape_data <- sub(".*/", "", basename(shape_url))
+   # shape_path <- file.path("data",shape_data)
+   # unzip(zipfile = shape_data, exdir = shape_path)
+   # file.remove(shape_data)
+```
+
+```{r boundaries}
+tl2010_county <- st_read(paste0("data/nhgis_shapefile_tl",shape_year,"/nhgis_shapefile_tl",shape_year,"_us_county_",shape_year,"/US_county_",shape_year,".shp")) #%>% select(GISJOIN)
+
+tl2010_city <- st_read(paste0("data/nhgis_shapefile_tl",shape_year,"/nhgis_shapefile_tl",shape_year,"_us_cty_sub_",shape_year,"/US_cty_sub_",shape_year,".shp")) #%>% select(GISJOIN)
+
+tl2010_tract <- st_read(paste0("data/nhgis_shapefile_tl",shape_year,"/nhgis_shapefile_tl",shape_year,"_us_tract_",shape_year,"/US_tract_",shape_year,".shp")) #%>% select(GISJOIN)
+
+tl2010_place <- st_read(paste0("data/nhgis_shapefile_tl",shape_year,"/nhgis_shapefile_tl",shape_year,"_us_place_",shape_year,"/US_place_",shape_year,".shp")) #%>% select(GISJOIN)
+```
+
+
+### Time Series Table Download
+```{r acsyears}
+acs_years <- c("2006-2010", "2007-2011", "2008-2012", "2009-2013", "2010-2014", 
+               "2011-2015", "2012-2016", "2013-2017", "2014-2018", "2015-2019", 
+               "2016-2020", "2017-2021", "2018-2022")
+```
+
+```{r}
+tops = c("CV5") #topics
+geogs = c("place") 
+download_data(tops,geogs, acs_years)
+```
+
+________________________________________________________________________________
+
+## Notes
+### Still to Do
+- get all the time series data that exists at the places level
+- write api to get OTHER data.. maybe (other than time series)
+- join to 2022 shapefile -- unless its the one standardized to 2010, then use 2010
+- upload to AGOL
+- meet with Bert for next steps
+
+### Bert Notes
+- Focus more time on 1 or 2 test cases than downloaded a bunch of stuff (SOV vehicle commutes, or telecommuting percentage)
+- places for time series data with acs 5 year
+- counties of interest tooele, morgan, summit, wasatch, davis, weber, salt lake, utah, box elder
+
+### Chad Notes
+- It might be a good idea to "double check" and review the 1_Inputs/2_SEData/_ControLTotals/_Source - ControlTotal_SE - 2022-08-31.xlsx (Sheet Process_SE_Historic) to make sure the values match up with NHGIS data
+- Telecommuting is not a variable within ACS or census questions. Instead they use Work at Home, and in some cases they use different self-employment variables. Telecommute (according to the process of the TDM) is calculated as the Total Work at Home value minus the self-employment totals. 
+  - tables to use: MEANS OF TRANSPORTATION TO WORK BY CLASS OF WORKER, MEANS OF TRANSPORTATION TO WORK BY INDUSTRY
+
+
