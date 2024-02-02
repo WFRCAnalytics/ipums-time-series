@@ -1,0 +1,21 @@
+---
+title: "R-Notes"
+author: "Chris Day"
+date: "2024-02-02"
+output: html_document
+---
+
+### R GDB Notes
+Saving to an ESRI File Geodatabase is now possible because of the R-ArcGIS Bridge and its arcgisbinding Package. Below are the steps I followed to getting this library to work:
+
+ - Download arcgisbinding package (Shown [here](https://www.youtube.com/redirect?event=video_description&redir_token=QUFFLUhqbkgyNnRwVVJoR2VZNWxyc1d5WDJpMDBmSDU1d3xBQ3Jtc0traDlsenN5ZkljZXdObHRya2tEWGQ3QTN3TXF5QW1hdmZFZzR3WDRueUIwMmN0UWg2Umw0UkJ3cDlQM0N4aDVOSmtxWkJyUWNFVGJNenRwQkxYV3Ixb2VmWVlRaEt5VDBUNnBNY0wxNjFZRm42TzA4TQ&q=https%3A%2F%2Fgithub.com%2FR-ArcGIS%2Fr-bridge%2Freleases%2Fdownload%2Fv1.0.0.111%2Farcgisbinding_1.0.0.111.zip&v=SUuj28yLV-4) or in Discussion of this [Youtube Link](https://www.youtube.com/watch?v=SUuj28yLV-4)
+ - In RStudio, click on **Packages > Install > Install From .zip > Browse > Select Download**
+ - Next open up ArcGis Pro and click on **Project > Options > Geoprocessing > R-ArcGIS Support > Check package for updates**. This should update the downloaded arcgisbinding to a compatible version
+ - Restart RStudio using .rs.restartR()
+ - Load library using library(arcgisbinding)
+ - Use this [pdf link](chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://esricanada-ce.github.io/r-arcgis-tutorials/3-R-ArcGIS-Scripting.pdf) on instructions for using the package: 
+ - Use arc.check_product() to verify licensing
+ 
+ 
+### R Simplify Polygons
+Go to this [website](https://www.r-bloggers.com/2021/03/simplifying-geospatial-features-in-r-with-sf-and-rmapshaper/) to have your mind blown.
