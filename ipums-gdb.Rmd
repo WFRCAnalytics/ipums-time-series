@@ -17,6 +17,7 @@ library(purrr)
 library(mapview)
 library(arcgisbinding)
 library(rmapshaper)
+source("R/api-keys.R")
 source("R/ipums-api-scripts.R")
 ```
 

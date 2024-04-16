@@ -1,8 +1,4 @@
 
-# api key needed to connect to ipums nhgis data
-apikey <- '59cba10d8a5da536fc06b59dd0e03dee980e4c999e4f373846adcc75'
-
-
 # this function will rename and unzip the nhgis download
 rename_unzip_files <- function(download_extract, topics, i) {
   

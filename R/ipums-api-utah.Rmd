@@ -15,8 +15,6 @@ library(tidyverse)
 library(sf)
 library(purrr)
 library(mapview)
-source("R/api-keys.R")
-source("R/ipums-api-scripts.R")
 ```
 
 ## Useful Sites
@@ -24,12 +22,17 @@ source("R/ipums-api-scripts.R")
  - [Data Download](https://data2.nhgis.org/main)
  - [R API](https://tech.popdata.org/ipumsr/articles/)
 
-________________________________________________________________________________
 
-## TimeSeries Setup
+## TimeSeries Metadata
+
+### API Key
+```{r api}
+apikey <- '59cba10d8a5da536fc06b59dd0e03dee980e4c999e4f373846adcc75'
+acs_names <- c("105","115","125","135","145","155","165","175","185","195","205","215","225")
+```
+
 ### Metadata
 ```{r metadata}
-acs_names <- c("105","115","125","135","145","155","165","175","185","195","205","215","225")
 time_series_mdta <- get_metadata_nhgis("time_series_tables", api_key = apikey)
 time_series_mdta_acs <- time_series_mdta %>%
   filter(Reduce(`&`, lapply(acs_names, function(x) map_lgl(years, ~ x %in% .x$name))))
@@ -59,9 +62,9 @@ topics_notract <- c("C54", #Workers of Working Age* by Means of Transportation t
                     "AC2" #Workers 16 Years and Over by Means of Transportation to Work [18]}
                    )
 ```
-________________________________________________________________________________
 
 ## API Content Download
+
 ### GIS Shape Download
 ```{r shape}
 # Define year
@@ -108,30 +111,96 @@ acs_years <- c("2006-2010", "2007-2011", "2008-2012", "2009-2013", "2010-2014",
                "2016-2020", "2017-2021", "2018-2022")
 ```
 
+```{r rename_unzip}
+rename_unzip_files <- function(download_extract, topics, i) {
+  
+  # determine variable names
+  table_url <- download_extract$download_links$table_data$url
+  table_zip <- sub(".*/", "", basename(table_url))
+  table_name <-  sub("^(.*?)_.+$", "\\1", table_zip)
+  name_replace <- topics[i]
+  data_path <- file.path("data")
+  
+  # unzip downloaded data
+  unzip(zipfile = table_zip, exdir = data_path)
+  
+  # all items to rename
+  all_items <- c(list.files(data_path, full.names = TRUE, recursive = TRUE),
+                 list.dirs(data_path, full.names = TRUE, recursive = TRUE))
+
+  #iIterate over each item
+  for (item in all_items) {
+    base_name <- basename(item)
+    new_name <- gsub(table_name, name_replace, base_name)
+    new_name <- gsub("_csv", "", new_name)
+    new_path <- file.path(dirname(item), new_name)
+    file.rename(item, new_path)
+  }
+
+  #remove original zip file
+  file.remove(table_zip)
+}
+```
+
+```{r download}
+download_data <- function(t,g,a){
+  
+  for (i in seq_along(t)) {
+    # format request
+    nhgis_ext2 <- define_extract_nhgis(
+    description = "Time Series Download",
+    time_series_tables = tst_spec(
+      t[i], 
+      geog_levels = g,
+      years = a
+      )
+    )
+  
+    # submit and download requested data
+    nhgis_ext_submitted2 <- submit_extract(nhgis_ext2,api_key = apikey)
+    downloadable_extract2 <- wait_for_extract(nhgis_ext_submitted2, api_key = apikey)
+    data_files2 <- download_extract(downloadable_extract2, api_key = apikey)
+  
+    rename_unzip_files(downloadable_extract2, t, i)
+  }
+}
+```
+
 ```{r}
-tops = c("CV5") #topics
+tops = c("AC2") #topics
 geogs = c("place") 
+
 download_data(tops,geogs, acs_years)
 ```
 
-________________________________________________________________________________
+## Join Shape to Time Series
 
-## Notes
-### Still to Do
+
+
+
+
+
+
+## Still to Do
 - get all the time series data that exists at the places level
 - write api to get OTHER data.. maybe (other than time series)
 - join to 2022 shapefile -- unless its the one standardized to 2010, then use 2010
 - upload to AGOL
 - meet with Bert for next steps
 
-### Bert Notes
+
+## Bert Notes
 - Focus more time on 1 or 2 test cases than downloaded a bunch of stuff (SOV vehicle commutes, or telecommuting percentage)
 - places for time series data with acs 5 year
 - counties of interest tooele, morgan, summit, wasatch, davis, weber, salt lake, utah, box elder
 
-### Chad Notes
+
+## Chad Notes
 - It might be a good idea to "double check" and review the 1_Inputs/2_SEData/_ControLTotals/_Source - ControlTotal_SE - 2022-08-31.xlsx (Sheet Process_SE_Historic) to make sure the values match up with NHGIS data
 - Telecommuting is not a variable within ACS or census questions. Instead they use Work at Home, and in some cases they use different self-employment variables. Telecommute (according to the process of the TDM) is calculated as the Total Work at Home value minus the self-employment totals. 
   - tables to use: MEANS OF TRANSPORTATION TO WORK BY CLASS OF WORKER, MEANS OF TRANSPORTATION TO WORK BY INDUSTRY
+  
+
+
 
 
